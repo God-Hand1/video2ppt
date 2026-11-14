@@ -23,6 +23,31 @@ function cleanupOldFiles(downloadsDir: string) {
   }
 }
 
+// Check for cookies file or environment variable for bypassing YouTube bot checks
+function getCookiesPath(): string | undefined {
+  try {
+    // 1. Direct file in project root
+    const localCookies = path.join(process.cwd(), 'cookies.txt');
+    if (fs.existsSync(localCookies)) {
+      return localCookies;
+    }
+
+    // 2. Environment variable YOUTUBE_COOKIES (e.g. set in Render dashboard)
+    if (process.env.YOUTUBE_COOKIES) {
+      const downloadsDir = path.join(process.cwd(), 'downloads');
+      if (!fs.existsSync(downloadsDir)) {
+        fs.mkdirSync(downloadsDir, { recursive: true });
+      }
+      const envCookiesPath = path.join(downloadsDir, 'cookies.txt');
+      fs.writeFileSync(envCookiesPath, process.env.YOUTUBE_COOKIES, 'utf-8');
+      return envCookiesPath;
+    }
+  } catch (err) {
+    console.warn('Cookies resolution warning:', err);
+  }
+  return undefined;
+}
+
 // Locate static ffmpeg binary if available
 function getFfmpegPath(): string | undefined {
   try {
@@ -163,6 +188,7 @@ export async function POST(request: NextRequest) {
     try {
       const runner = getYtDlpRunner();
       const ffmpegPath = getFfmpegPath();
+      const cookiesPath = getCookiesPath();
 
       const dlFlags: Record<string, any> = {
         output: outputTemplate,
@@ -170,7 +196,6 @@ export async function POST(request: NextRequest) {
         noPlaylist: true,
         maxFilesize: '1000m',
         noWarnings: true,
-        extractorArgs: 'youtube:player-client=android,web;player_client=android,web',
         concurrentFragments: 4,
         geoBypass: true,
         noCheckCertificates: true,
@@ -180,19 +205,12 @@ export async function POST(request: NextRequest) {
         dlFlags.ffmpegLocation = ffmpegPath;
       }
 
-      // Execute yt-dlp to download video (with automatic fallback if specific player response is rejected)
-      try {
-        await runner(targetUrl, dlFlags);
-      } catch (clientErr: any) {
-        const errText = (clientErr?.stderr || clientErr?.message || '').toLowerCase();
-        if (errText.includes('player response') || errText.includes('bot')) {
-          console.warn('Retrying download with alternate player client...');
-          const retryFlags = { ...dlFlags, extractorArgs: 'youtube:player-client=ios,mweb' };
-          await runner(targetUrl, retryFlags);
-        } else {
-          throw clientErr;
-        }
+      if (cookiesPath) {
+        dlFlags.cookies = cookiesPath;
       }
+
+      // Execute yt-dlp to download video
+      await runner(targetUrl, dlFlags);
     } catch (ytdlError: any) {
       console.error('yt-dlp execution error:', ytdlError);
       const stderr = (ytdlError?.stderr || '').trim();
@@ -204,9 +222,18 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      if (rawMsg.includes('Private video') || rawMsg.includes('Sign in') || rawMsg.includes('bot')) {
+      if (
+        rawMsg.includes('Private video') ||
+        rawMsg.includes('Sign in to confirm') ||
+        rawMsg.includes('player response') ||
+        rawMsg.includes('bot') ||
+        rawMsg.includes('LOGIN_REQUIRED')
+      ) {
         return NextResponse.json(
-          { error: 'This video is restricted, private, or blocked by YouTube bot protection.' },
+          {
+            error: 'YouTube requires authentication or bot verification for this video on cloud servers. Please use the Local Video tab to convert directly in your browser, or configure YOUTUBE_COOKIES in Render.',
+            code: 'YOUTUBE_RESTRICTED'
+          },
           { status: 400 }
         );
       }
@@ -217,13 +244,15 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Extract specific error line without raw command output
+      // Extract specific error line without raw command output or bug report links
       const errorLine = stderr
         .split('\n')
         .map((l: string) => l.trim())
         .find((l: string) => l.startsWith('ERROR:') || l.includes('Error:'));
 
-      const cleanError = errorLine ? errorLine.replace(/^ERROR:\s*/i, '') : 'Unable to download this video stream. Please verify the URL or try downloading locally.';
+      const cleanError = errorLine
+        ? errorLine.replace(/^ERROR:\s*/i, '').replace(/please report this issue.*/i, '').trim()
+        : 'Unable to download this video stream. Please verify the URL or try downloading locally.';
 
       return NextResponse.json(
         { error: cleanError },

@@ -76,3 +76,51 @@ test('Validates and normalizes video URL formats', () => {
     'https://www.youtube.com/watch?v=B1u99zVMNRM'
   );
 });
+
+test('Sanitizes error messages for end users and catches bot/restriction errors', () => {
+  const sanitizeError = (stderr, rawMsg) => {
+    if (rawMsg.includes('is a live stream') || rawMsg.includes('live event')) {
+      return { status: 400, error: 'This stream is currently broadcasting live. Please wait until the live stream finishes.' };
+    }
+    if (
+      rawMsg.includes('Private video') ||
+      rawMsg.includes('Sign in to confirm') ||
+      rawMsg.includes('player response') ||
+      rawMsg.includes('bot') ||
+      rawMsg.includes('LOGIN_REQUIRED')
+    ) {
+      return {
+        status: 400,
+        error: 'YouTube requires authentication or bot verification for this video on cloud servers. Please use the Local Video tab to convert directly in your browser, or configure YOUTUBE_COOKIES in Render.',
+        code: 'YOUTUBE_RESTRICTED'
+      };
+    }
+    if (rawMsg.includes('larger than max-filesize') || rawMsg.includes('File is larger')) {
+      return { status: 400, error: 'This video exceeds the 1GB file size limit. For marathon streams, please process via Local Video.' };
+    }
+
+    const errorLine = stderr
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => l.startsWith('ERROR:') || l.includes('Error:'));
+
+    const cleanError = errorLine
+      ? errorLine.replace(/^ERROR:\s*/i, '').replace(/please report this issue.*/i, '').trim()
+      : 'Unable to download this video stream. Please verify the URL or try downloading locally.';
+
+    return { status: 400, error: cleanError };
+  };
+
+  const botErr = sanitizeError(
+    'ERROR: [youtube] B1u99zVMNRM: Failed to extract any player response; please report this issue...',
+    'ERROR: [youtube] B1u99zVMNRM: Failed to extract any player response; please report this issue...'
+  );
+  assert.strictEqual(botErr.code, 'YOUTUBE_RESTRICTED');
+  assert.match(botErr.error, /YouTube requires authentication/);
+
+  const genericErr = sanitizeError(
+    'ERROR: Unsupported URL: https://invalid.com/video\nSome trace',
+    'ERROR: Unsupported URL: https://invalid.com/video'
+  );
+  assert.strictEqual(genericErr.error, 'Unsupported URL: https://invalid.com/video');
+});
