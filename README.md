@@ -25,6 +25,24 @@ npm install @video2ppt/frames
 
 **[Full package documentation →](packages/frames/README.md)**
 
+## Web Application & Cloud Deployment
+
+Video2PPT includes a production-ready FastAPI web server with a built-in drag-and-drop web UI:
+
+```bash
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+### Endpoints
+- **Web UI:** `GET /` — Interactive web interface to drag & drop videos and download PowerPoint files.
+- **Health Check:** `GET /health` — Service health probe (returns `{"status": "ok"}`).
+- **API Conversion:** `POST /convert` — Accepts `multipart/form-data` with `video` (file) and `interval` (seconds, default 5). Streams the generated `.pptx` presentation.
+
+### Deploying to Render.com
+- **Environment:** `Python 3`
+- **Build Command:** `pip install -r requirements.txt`
+- **Start Command:** `uvicorn app:app --host 0.0.0.0 --port $PORT`
+
 ## Python CLI
 
 Legacy frame extraction tool:
