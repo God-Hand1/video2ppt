@@ -1,6 +1,7 @@
 export {
   extractFrames,
   extractFrameAt,
+  parseFrameRate,
   ExtractOptions,
   ExtractResult,
 } from './extract';

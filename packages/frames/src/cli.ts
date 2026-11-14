@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { promises as fs } from 'fs';
+import path from 'path';
 import { extractFrames } from './extract';
 import { compareFrames, detectSceneChanges } from './compare';
-import path from 'path';
 
 const program = new Command();
 
@@ -24,8 +25,17 @@ program
     try {
       console.log('🎬 Video2PPT Frame Extractor\n');
       
+      const interval = parseFloat(options.interval);
+      if (isNaN(interval) || interval <= 0) {
+        throw new Error(`Invalid interval: "${options.interval}". Must be a positive number.`);
+      }
+
+      if (options.format !== 'jpg' && options.format !== 'png') {
+        throw new Error(`Invalid format: "${options.format}". Format must be "jpg" or "png".`);
+      }
+
       const result = await extractFrames(video, {
-        interval: parseFloat(options.interval),
+        interval,
         outputDir: options.output,
         format: options.format,
         quality: parseInt(options.quality),
@@ -84,12 +94,11 @@ program
     try {
       console.log('🎬 Video2PPT Scene Detector\n');
       
-      const fs = require('fs').promises;
       const files = await fs.readdir(frameDir);
       const framePaths = files
         .filter((f: string) => f.match(/\.(jpg|jpeg|png)$/i))
         .map((f: string) => path.join(frameDir, f))
-        .sort();
+        .sort((a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
       if (framePaths.length < 2) {
         console.error('❌ Need at least 2 frames to detect scene changes');

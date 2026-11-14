@@ -35,7 +35,7 @@ export async function compareFrames(
     fs.readFile(image2Path),
   ]);
 
-  const [img1Resized, img2Resized] = await Promise.all([
+  let [img1Resized, img2Resized] = await Promise.all([
     sharp(img1Buffer)
       .resize(resizeWidth, null, { fit: 'inside' })
       .png()
@@ -46,13 +46,16 @@ export async function compareFrames(
       .toBuffer(),
   ]);
 
-  const png1 = PNG.sync.read(img1Resized);
-  const png2 = PNG.sync.read(img2Resized);
+  let png1 = PNG.sync.read(img1Resized);
+  let png2 = PNG.sync.read(img2Resized);
 
+  // If heights or widths differ (e.g. aspect ratio mismatch or rounding), normalize img2 to match png1 canvas
   if (png1.width !== png2.width || png1.height !== png2.height) {
-    throw new Error(
-      `Image dimensions do not match: ${png1.width}x${png1.height} vs ${png2.width}x${png2.height}`
-    );
+    img2Resized = await sharp(img2Buffer)
+      .resize(png1.width, png1.height, { fit: 'fill' })
+      .png()
+      .toBuffer();
+    png2 = PNG.sync.read(img2Resized);
   }
 
   const diff = new PNG({ width: png1.width, height: png1.height });
@@ -88,6 +91,10 @@ export async function detectSceneChanges(
   sceneThreshold: number = 30,
   options: CompareOptions = {}
 ): Promise<number[]> {
+  if (framePaths.length === 0) {
+    return [];
+  }
+
   const sceneChanges: number[] = [0];
 
   for (let i = 1; i < framePaths.length; i++) {
@@ -105,12 +112,14 @@ export async function detectSceneChanges(
  * Calculate structural similarity between two frames (0-1 scale)
  * @param image1Path Path to the first image
  * @param image2Path Path to the second image
+ * @param options Comparison options
  * @returns Promise with similarity score (0 = completely different, 1 = identical)
  */
 export async function calculateSimilarity(
   image1Path: string,
-  image2Path: string
+  image2Path: string,
+  options: CompareOptions = {}
 ): Promise<number> {
-  const result = await compareFrames(image1Path, image2Path);
+  const result = await compareFrames(image1Path, image2Path, options);
   return 1 - result.percentDifferent / 100;
 }

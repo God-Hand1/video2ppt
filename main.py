@@ -7,20 +7,17 @@ Extract key frames from videos and generate PPT
 
 import os
 import sys
-import cv2
+import shutil
 import argparse
 import logging
 from pathlib import Path
-from typing import List, Tuple
-import numpy as np
+from typing import List
 from datetime import datetime
 
 try:
-    from PIL import Image
+    import cv2
     from pptx import Presentation
-    from pptx.util import Inches, Pt
-    from pptx.enum.text import PP_ALIGN
-    from pptx.dml.color import RGBColor
+    from pptx.util import Inches
 except ImportError as e:
     print(f"Error: Missing required library - {e}")
     print("Please run: pip install -r requirements.txt")
@@ -47,10 +44,15 @@ class Video2PPT:
             output_path: Path to output PPT file
             fps_interval: Extract one frame every N seconds
         """
+        if fps_interval <= 0:
+            raise ValueError(f"fps_interval must be greater than 0, got {fps_interval}")
+
         self.video_path = video_path
         self.fps_interval = fps_interval
         self.frames: List[str] = []  # Store frame paths
         self.frames_dir = None
+        self.frame_width = 0
+        self.frame_height = 0
         
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"Video file not found: {video_path}")
@@ -76,35 +78,39 @@ class Video2PPT:
         if not cap.isOpened():
             raise ValueError(f"Unable to open video file: {self.video_path}")
         
+        self.frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         duration = total_frames / fps if fps > 0 else 0
         
         logger.info(f"Video info - FPS: {fps:.2f}, Total frames: {total_frames}, Duration: {duration:.2f}s")
         
-        frame_interval = int(fps * self.fps_interval)
+        frame_interval = max(1, int(fps * self.fps_interval))
         frame_count = 0
         extracted_count = 0
         
-        while True:
-            ret, frame = cap.read()
-            
-            if not ret:
-                break
-            
-            # Extract frames at specified intervals
-            if frame_count % frame_interval == 0:
-                frame_path = os.path.join(self.frames_dir, f"frame_{extracted_count:04d}.jpg")
-                cv2.imwrite(frame_path, frame)
-                self.frames.append(frame_path)
-                extracted_count += 1
-                
-                if extracted_count % 10 == 0:
-                    logger.info(f"Extracted {extracted_count} frames")
-            
-            frame_count += 1
+        try:
+            while True:
+                ret, frame = cap.read()
+
+                if not ret:
+                    break
+
+                # Extract frames at specified intervals
+                if frame_count % frame_interval == 0:
+                    frame_path = os.path.join(self.frames_dir, f"frame_{extracted_count:04d}.jpg")
+                    cv2.imwrite(frame_path, frame)
+                    self.frames.append(frame_path)
+                    extracted_count += 1
+
+                    if extracted_count % 10 == 0:
+                        logger.info(f"Extracted {extracted_count} frames")
+
+                frame_count += 1
+        finally:
+            cap.release()
         
-        cap.release()
         logger.info(f"Frame extraction complete. Total frames extracted: {extracted_count}")
     
     def generate_ppt(self) -> None:
@@ -113,12 +119,19 @@ class Video2PPT:
         
         if not self.frames:
             logger.error("No frame data available")
-            return
+            raise RuntimeError("No frame data available to generate PowerPoint presentation")
         
-        # Create presentation
+        # Create presentation and preserve video aspect ratio
         prs = Presentation()
-        prs.slide_width = Inches(10)
-        prs.slide_height = Inches(7.5)
+        if self.frame_width > 0 and self.frame_height > 0:
+            aspect_ratio = self.frame_width / self.frame_height
+            slide_width = Inches(7.5 * aspect_ratio)
+            slide_height = Inches(7.5)
+        else:
+            slide_width = Inches(10)
+            slide_height = Inches(7.5)
+        prs.slide_width = slide_width
+        prs.slide_height = slide_height
         
         # Add title slide
         title_slide_layout = prs.slide_layouts[0]
@@ -141,9 +154,7 @@ class Video2PPT:
             # Add frame image, fill entire slide (edge-aligned)
             left = Inches(0)
             top = Inches(0)
-            width = Inches(10)     # Slide width
-            height = Inches(7.5)   # Slide height
-            pic = slide.shapes.add_picture(frame_path, left, top, width=width, height=height)
+            pic = slide.shapes.add_picture(frame_path, left, top, width=slide_width, height=slide_height)
         
         # Save presentation
         prs.save(self.output_path)
@@ -152,7 +163,6 @@ class Video2PPT:
     def cleanup(self) -> None:
         """Clean up temporary files"""
         if self.frames_dir and os.path.exists(self.frames_dir):
-            import shutil
             shutil.rmtree(self.frames_dir)
             logger.info("Temporary files cleaned up")
     

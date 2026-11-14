@@ -36,4 +36,17 @@ next-env.d.ts
 
 # downloads directory
 /downloads/
-downloads/ 
+downloads/
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+*.venv
+venv/
+.venv/
+
+# video2ppt temp and output artifacts
+/temp_frames/
+/frames/
+*.pptx
