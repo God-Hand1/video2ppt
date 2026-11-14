@@ -55,17 +55,17 @@ export async function POST(request: NextRequest) {
     const outputTemplate = path.join(downloadsDir, `${requestId}_%(title).40s.%(ext)s`);
 
     try {
-      // Execute yt-dlp to download video
+      // Execute yt-dlp to download video (prioritizing <=480p to keep large lectures compact and fast)
       await youtubedl(trimmedUrl, {
         output: outputTemplate,
-        format: 'best[height<=720]/bestvideo[height<=720]/best',
+        format: 'bestvideo[height<=480][ext=mp4]/bestvideo[height<=360][ext=mp4]/best[height<=480]/best',
         noPlaylist: true,
-        maxFilesize: '150m',
+        maxFilesize: '1000m',
         noWarnings: true,
       });
     } catch (ytdlError: any) {
       console.error('yt-dlp execution error:', ytdlError);
-      const msg = ytdlError?.message || ytdlError?.stderr || 'Failed to download video';
+      const msg = ytdlError?.message || ytdlError?.stderr || '';
 
       if (msg.includes('is a live stream') || msg.includes('live event')) {
         return NextResponse.json(
@@ -75,12 +75,20 @@ export async function POST(request: NextRequest) {
       }
       if (msg.includes('Private video') || msg.includes('Sign in')) {
         return NextResponse.json(
-          { error: 'This video is private or age-restricted and cannot be downloaded.' },
+          { error: 'This video is private or age-restricted and cannot be downloaded without login.' },
           { status: 400 }
         );
       }
+      if (msg.includes('larger than max-filesize') || msg.includes('File is larger')) {
+        return NextResponse.json(
+          { error: 'This video exceeds the 1GB file size limit. For multi-hour marathon streams, please process locally.' },
+          { status: 400 }
+        );
+      }
+
+      const firstLine = msg.replace(/^ERROR:\s*/i, '').split('\n')[0]?.trim();
       return NextResponse.json(
-        { error: 'Unable to process this video link. Please verify the URL or try downloading locally.' },
+        { error: firstLine || 'Unable to process this video link. Please verify the URL or try downloading locally.' },
         { status: 400 }
       );
     }
