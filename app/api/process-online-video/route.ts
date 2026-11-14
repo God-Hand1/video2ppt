@@ -56,6 +56,52 @@ function getFfmpegPath(): string | undefined {
   return undefined;
 }
 
+// Normalize YouTube and video URLs into canonical player endpoints
+function normalizeVideoUrl(rawUrl: string): string {
+  try {
+    const trimmed = rawUrl.trim();
+    const urlObj = new URL(trimmed);
+
+    // YouTube URLs
+    if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
+      // 1. /live/VIDEO_ID
+      const liveMatch = urlObj.pathname.match(/\/live\/([a-zA-Z0-9_-]+)/);
+      if (liveMatch && liveMatch[1]) {
+        return `https://www.youtube.com/watch?v=${liveMatch[1]}`;
+      }
+
+      // 2. /shorts/VIDEO_ID
+      const shortsMatch = urlObj.pathname.match(/\/shorts\/([a-zA-Z0-9_-]+)/);
+      if (shortsMatch && shortsMatch[1]) {
+        return `https://www.youtube.com/watch?v=${shortsMatch[1]}`;
+      }
+
+      // 3. /embed/VIDEO_ID
+      const embedMatch = urlObj.pathname.match(/\/embed\/([a-zA-Z0-9_-]+)/);
+      if (embedMatch && embedMatch[1]) {
+        return `https://www.youtube.com/watch?v=${embedMatch[1]}`;
+      }
+
+      // 4. youtu.be/VIDEO_ID
+      if (urlObj.hostname.includes('youtu.be')) {
+        const id = urlObj.pathname.replace(/^\//, '').split('/')[0];
+        if (id) {
+          return `https://www.youtube.com/watch?v=${id}`;
+        }
+      }
+
+      // 5. Standard watch?v=VIDEO_ID (strip extraneous tracking query params like ?si= or &t=)
+      const v = urlObj.searchParams.get('v');
+      if (v) {
+        return `https://www.youtube.com/watch?v=${v}`;
+      }
+    }
+    return trimmed;
+  } catch {
+    return rawUrl.trim();
+  }
+}
+
 // Locate yt-dlp binary with robust path resolution for Next.js bundling on Render/Linux
 function getYtDlpRunner() {
   const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
@@ -91,10 +137,11 @@ export async function POST(request: NextRequest) {
     }
 
     const trimmedUrl = url.trim();
+    const targetUrl = normalizeVideoUrl(trimmedUrl);
 
     // Basic URL pattern and protocol check
     try {
-      const parsedUrl = new URL(trimmedUrl);
+      const parsedUrl = new URL(targetUrl);
       if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
         return NextResponse.json({ error: 'URL must begin with http:// or https://' }, { status: 400 });
       }
@@ -123,16 +170,29 @@ export async function POST(request: NextRequest) {
         noPlaylist: true,
         maxFilesize: '1000m',
         noWarnings: true,
-        extractorArgs: 'youtube:player_client=android,web',
+        extractorArgs: 'youtube:player-client=android,web;player_client=android,web',
         concurrentFragments: 4,
+        geoBypass: true,
+        noCheckCertificates: true,
       };
 
       if (ffmpegPath) {
         dlFlags.ffmpegLocation = ffmpegPath;
       }
 
-      // Execute yt-dlp to download video (prioritizing <=480p to keep large lectures compact and fast)
-      await runner(trimmedUrl, dlFlags);
+      // Execute yt-dlp to download video (with automatic fallback if specific player response is rejected)
+      try {
+        await runner(targetUrl, dlFlags);
+      } catch (clientErr: any) {
+        const errText = (clientErr?.stderr || clientErr?.message || '').toLowerCase();
+        if (errText.includes('player response') || errText.includes('bot')) {
+          console.warn('Retrying download with alternate player client...');
+          const retryFlags = { ...dlFlags, extractorArgs: 'youtube:player-client=ios,mweb' };
+          await runner(targetUrl, retryFlags);
+        } else {
+          throw clientErr;
+        }
+      }
     } catch (ytdlError: any) {
       console.error('yt-dlp execution error:', ytdlError);
       const stderr = (ytdlError?.stderr || '').trim();

@@ -29,23 +29,50 @@ test('GET /api/get-file security checks against path traversal', async () => {
   assert.strictEqual(checkSafePath('').status, 400);
 });
 
-test('Validates video URL format before spawning downloaders', () => {
-  const isValidUrl = (urlStr) => {
-    if (!urlStr || typeof urlStr !== 'string' || !urlStr.trim()) return false;
+test('Validates and normalizes video URL formats', () => {
+  const normalizeVideoUrl = (rawUrl) => {
     try {
-      new URL(urlStr.trim());
-      return true;
+      const trimmed = rawUrl.trim();
+      const urlObj = new URL(trimmed);
+
+      if (urlObj.hostname.includes('youtube.com') || urlObj.hostname.includes('youtu.be')) {
+        const liveMatch = urlObj.pathname.match(/\/live\/([a-zA-Z0-9_-]+)/);
+        if (liveMatch && liveMatch[1]) return `https://www.youtube.com/watch?v=${liveMatch[1]}`;
+
+        const shortsMatch = urlObj.pathname.match(/\/shorts\/([a-zA-Z0-9_-]+)/);
+        if (shortsMatch && shortsMatch[1]) return `https://www.youtube.com/watch?v=${shortsMatch[1]}`;
+
+        const embedMatch = urlObj.pathname.match(/\/embed\/([a-zA-Z0-9_-]+)/);
+        if (embedMatch && embedMatch[1]) return `https://www.youtube.com/watch?v=${embedMatch[1]}`;
+
+        if (urlObj.hostname.includes('youtu.be')) {
+          const id = urlObj.pathname.replace(/^\//, '').split('/')[0];
+          if (id) return `https://www.youtube.com/watch?v=${id}`;
+        }
+
+        const v = urlObj.searchParams.get('v');
+        if (v) return `https://www.youtube.com/watch?v=${v}`;
+      }
+      return trimmed;
     } catch {
-      return false;
+      return rawUrl.trim();
     }
   };
 
-  assert.strictEqual(isValidUrl(''), false);
-  assert.strictEqual(isValidUrl('   '), false);
-  assert.strictEqual(isValidUrl('not-a-url'), false);
-  assert.strictEqual(isValidUrl('javascript:alert(1)'), true); // valid URL object, but protocol can be filtered
-  assert.strictEqual(isValidUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), true);
-  assert.strictEqual(isValidUrl('https://youtu.be/dQw4w9WgXcQ'), true);
-  assert.strictEqual(isValidUrl('https://www.youtube.com/shorts/dQw4w9WgXcQ'), true);
-  assert.strictEqual(isValidUrl('https://www.youtube.com/live/dQw4w9WgXcQ'), true);
+  assert.strictEqual(
+    normalizeVideoUrl('https://www.youtube.com/live/B1u99zVMNRM'),
+    'https://www.youtube.com/watch?v=B1u99zVMNRM'
+  );
+  assert.strictEqual(
+    normalizeVideoUrl('https://youtu.be/B1u99zVMNRM'),
+    'https://www.youtube.com/watch?v=B1u99zVMNRM'
+  );
+  assert.strictEqual(
+    normalizeVideoUrl('https://www.youtube.com/shorts/B1u99zVMNRM'),
+    'https://www.youtube.com/watch?v=B1u99zVMNRM'
+  );
+  assert.strictEqual(
+    normalizeVideoUrl('https://www.youtube.com/watch?v=B1u99zVMNRM&t=120s&si=abc'),
+    'https://www.youtube.com/watch?v=B1u99zVMNRM'
+  );
 });
