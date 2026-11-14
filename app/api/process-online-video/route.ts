@@ -23,6 +23,39 @@ function cleanupOldFiles(downloadsDir: string) {
   }
 }
 
+// Locate static ffmpeg binary if available
+function getFfmpegPath(): string | undefined {
+  try {
+    const ffmpegPath = require('ffmpeg-static');
+    if (ffmpegPath && fs.existsSync(ffmpegPath)) {
+      if (process.platform !== 'win32') {
+        try {
+          fs.chmodSync(ffmpegPath, 0o755);
+        } catch {
+          // ignore chmod errors
+        }
+      }
+      return ffmpegPath;
+    }
+  } catch {
+    // ignore
+  }
+
+  const candidatePath = path.join(process.cwd(), 'node_modules', 'ffmpeg-static', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+  if (fs.existsSync(candidatePath)) {
+    if (process.platform !== 'win32') {
+      try {
+        fs.chmodSync(candidatePath, 0o755);
+      } catch {
+        // ignore
+      }
+    }
+    return candidatePath;
+  }
+
+  return undefined;
+}
+
 // Locate yt-dlp binary with robust path resolution for Next.js bundling on Render/Linux
 function getYtDlpRunner() {
   const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
@@ -82,40 +115,58 @@ export async function POST(request: NextRequest) {
 
     try {
       const runner = getYtDlpRunner();
-      // Execute yt-dlp to download video (prioritizing <=480p to keep large lectures compact and fast)
-      await runner(trimmedUrl, {
+      const ffmpegPath = getFfmpegPath();
+
+      const dlFlags: Record<string, any> = {
         output: outputTemplate,
         format: 'bestvideo[height<=480][ext=mp4]/bestvideo[height<=360][ext=mp4]/best[height<=480]/best',
         noPlaylist: true,
         maxFilesize: '1000m',
         noWarnings: true,
-      });
+        extractorArgs: 'youtube:player_client=android,web',
+        concurrentFragments: 4,
+      };
+
+      if (ffmpegPath) {
+        dlFlags.ffmpegLocation = ffmpegPath;
+      }
+
+      // Execute yt-dlp to download video (prioritizing <=480p to keep large lectures compact and fast)
+      await runner(trimmedUrl, dlFlags);
     } catch (ytdlError: any) {
       console.error('yt-dlp execution error:', ytdlError);
-      const msg = ytdlError?.message || ytdlError?.stderr || '';
+      const stderr = (ytdlError?.stderr || '').trim();
+      const rawMsg = (stderr || ytdlError?.message || '').trim();
 
-      if (msg.includes('is a live stream') || msg.includes('live event')) {
+      if (rawMsg.includes('is a live stream') || rawMsg.includes('live event')) {
         return NextResponse.json(
           { error: 'This stream is currently broadcasting live. Please wait until the live stream finishes.' },
           { status: 400 }
         );
       }
-      if (msg.includes('Private video') || msg.includes('Sign in')) {
+      if (rawMsg.includes('Private video') || rawMsg.includes('Sign in') || rawMsg.includes('bot')) {
         return NextResponse.json(
-          { error: 'This video is private or age-restricted and cannot be downloaded without login.' },
+          { error: 'This video is restricted, private, or blocked by YouTube bot protection.' },
           { status: 400 }
         );
       }
-      if (msg.includes('larger than max-filesize') || msg.includes('File is larger')) {
+      if (rawMsg.includes('larger than max-filesize') || rawMsg.includes('File is larger')) {
         return NextResponse.json(
           { error: 'This video exceeds the 1GB file size limit. For multi-hour marathon streams, please process locally.' },
           { status: 400 }
         );
       }
 
-      const firstLine = msg.replace(/^ERROR:\s*/i, '').split('\n')[0]?.trim();
+      // Extract specific error line without raw command output
+      const errorLine = stderr
+        .split('\n')
+        .map((l: string) => l.trim())
+        .find((l: string) => l.startsWith('ERROR:') || l.includes('Error:'));
+
+      const cleanError = errorLine ? errorLine.replace(/^ERROR:\s*/i, '') : 'Unable to download this video stream. Please verify the URL or try downloading locally.';
+
       return NextResponse.json(
-        { error: firstLine || 'Unable to process this video link. Please verify the URL or try downloading locally.' },
+        { error: cleanError },
         { status: 400 }
       );
     }
