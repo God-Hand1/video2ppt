@@ -1,105 +1,215 @@
-# <img src="assets/logo.svg" alt="Video2PPT" width="30"> Video2PPT
+# Video2PPT - Knowledge Snapshots, Wisdom Preserved
 
-Developer tools for video frame extraction and scene comparison.
+> 🇺🇸 English | [🇨🇳 中文](README_zh.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![npm](https://img.shields.io/npm/v/@video2ppt/frames.svg)](https://www.npmjs.com/package/@video2ppt/frames)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)
+![Next.js](https://img.shields.io/badge/Next.js-14.1.0-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.2.2-blue)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.3.3-38B2AC)
 
-## npm Package
+A free, privacy-focused online tool that converts videos from any source into PowerPoint presentations. Extract key insights from local video files, online video links, or live screen recordings to generate beautiful PPT documents.
 
-Extract frames and compare scenes with `@video2ppt/frames`:
+🌐 **Live Demo**: [video2ppt.com](https://video2ppt.com)
 
-```bash
-npx @video2ppt/frames extract video.mp4 --interval 5 --output ./frames
-npx @video2ppt/frames compare frame1.jpg frame2.jpg
+## ✨ Features
+
+- **🎥 Multi-Source Support**: Process local video files, online video URLs, or live screen recordings
+- **⚡ Real-Time Processing**: Generate PPT slides while watching videos - perfect for meetings, webinars, and online courses
+- **🔒 Privacy First**: All processing happens locally in your browser - no video uploads, complete data privacy
+- **🆓 Completely Free**: Full functionality with no ads or premium tiers
+- **🤖 AI-Powered**: Intelligent content extraction and structured PPT generation
+- **🌍 Multilingual**: Support for English and Chinese interfaces
+- **📱 Responsive Design**: Works seamlessly across desktop, tablet, and mobile devices
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- npm, yarn, or pnpm
+
+### Installation
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/wangxs404/video2ppt.git
+   cd video2ppt
+   ```
+2. **Install dependencies**
+
+   ```bash
+   npm install
+   # or
+   yarn install
+   # or
+   pnpm install
+   ```
+3. **Start development server**
+
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   # or
+   pnpm dev
+   ```
+4. **Open your browser**
+
+   Navigate to [http://localhost:3000](http://localhost:3000)
+
+## 🏗️ Tech Stack
+
+### Frontend
+
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Components**: Shadcn UI, Radix UI
+- **Design**: Neo-brutalism style
+- **Animations**: Framer Motion
+- **Internationalization**: next-intl
+
+### Core Libraries
+
+- **Video Processing**: FFmpeg.wasm
+- **PPT Generation**: PptxGenJS
+- **File Handling**: File-saver, JSZip
+- **WebSocket**: ws
+
+### Development Tools
+
+- **Linting**: ESLint
+- **Package Manager**: pnpm
+- **Build Tool**: Next.js built-in
+
+## 📖 Usage
+
+### 1. Local Video Processing
+
+- Upload video files from your device
+- Supports common formats (MP4, AVI, MOV, etc.)
+- Process and extract key frames and content
+
+### 2. Online Video Processing
+
+- Paste video URLs from popular platforms
+- Automatic content extraction and analysis
+- Generate structured presentations
+
+### 3. Screen Recording
+
+- Real-time screen capture
+- Live PPT generation during recording
+- Perfect for live presentations and tutorials
+
+## 🎯 Use Cases
+
+- **📹 Meeting Documentation**: Extract key points from recorded meetings for easy sharing
+- **📚 Educational Content**: Transform lengthy educational videos into concise study materials
+- **🎓 Conference Notes**: Capture expert insights from seminars and workshops
+- **💼 Training Materials**: Convert training videos into reusable presentation formats
+- **📝 Content Summarization**: Create executive summaries from video content
+
+## 🏗️ Project Structure
+
+```
+video2ppt/
+├── app/                          # Next.js app directory
+│   ├── [locale]/                 # Internationalized routes
+│   │   ├── local-video/         # Local video processing
+│   │   ├── online-video/        # Online video processing
+│   │   └── screen-recording/    # Screen recording feature
+│   ├── api/                     # API routes
+│   └── utils/                   # Utility functions
+├── components/                   # Reusable UI components
+├── hooks/                       # Custom React hooks
+├── messages/                    # Internationalization files
+│   ├── en.json                  # English translations
+│   └── zh.json                  # Chinese translations
+├── public/                      # Static assets
+└── ...config files
 ```
 
-Install for programmatic use:
+## 🤝 Contributing
 
-```bash
-npm install @video2ppt/frames
-```
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
-**Requirements:** Node.js 16+, FFmpeg
+## 📋 Roadmap
 
-**[Full package documentation →](packages/frames/README.md)**
+- [ ] **Enhanced AI Processing**: Improved content extraction algorithms
+- [ ] **More Export Formats**: Support for Google Slides, Keynote
+- [ ] **Cloud Storage Integration**: Direct export to cloud services
+- [ ] **Advanced Templates**: More professional PPT templates
+- [ ] **Collaboration Features**: Real-time collaborative editing
+- [ ] **API Access**: RESTful API for developers
 
-## Web Application & Cloud Deployment
+## 🐛 Bug Reports & Feature Requests
 
-Video2PPT includes a production-ready FastAPI web server with a built-in drag-and-drop web UI:
+Found a bug? Have a feature idea? Please use our [Issue Templates](.github/ISSUE_TEMPLATE/):
 
-```bash
-uvicorn app:app --host 0.0.0.0 --port 8000
-```
+- [🐛 Bug Report](.github/ISSUE_TEMPLATE/bug_report.md)
+- [✨ Feature Request](.github/ISSUE_TEMPLATE/feature_request.md)
 
-### Endpoints
-- **Web UI:** `GET /` — Interactive web interface to drag & drop videos and download PowerPoint files.
-- **Health Check:** `GET /health` — Service health probe (returns `{"status": "ok"}`).
-- **API Conversion:** `POST /convert` — Accepts `multipart/form-data` with `video` (file) and `interval` (seconds, default 5). Streams the generated `.pptx` presentation.
+## 📄 License
 
-### Deploying to Render.com
-- **Environment:** `Python 3`
-- **Build Command:** `pip install -r requirements.txt`
-- **Start Command:** `uvicorn app:app --host 0.0.0.0 --port $PORT`
+**⚠️ Important: This project is licensed under CC BY-NC-SA 4.0**
 
-## Python CLI
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-Legacy frame extraction tool:
+### You are free to:
 
-```bash
-python3 main.py video.mp4 -i 5 -o output.pptx
-```
+- ✅ **Share** — Copy and redistribute the material in any medium or format
+- ✅ **Adapt** — Remix, transform, and build upon the material
+- ✅ **Personal Use** — Use for learning, education, and research
+- ✅ **Non-profit Use** — Use in non-profit organizations
 
-**Requirements:** Python 3.11+
+### Under the following terms:
 
-**Installation:**
-```bash
-git clone https://github.com/wangxs404/video2ppt.git
-cd video2ppt
-pip install -r requirements.txt
-```
+- 📝 **Attribution** — Give appropriate credit, provide a link to the license, and indicate if changes were made
+- 🚫 **NonCommercial** — You may not use the material for commercial purposes
+- 🔄 **ShareAlike** — If you remix, transform, or build upon the material, you must distribute your contributions under the same license
 
-**Command reference:**
-```
-python3 main.py <video> [-i INTERVAL] [-o OUTPUT]
+### Commercial Use Prohibited
 
-Arguments:
-  video                 Input video file
-  -i, --interval       Frame extraction interval in seconds (default: 1)
-  -o, --output         Output PowerPoint file path
-```
+This project **strictly prohibits commercial use**, including but not limited to:
 
-## Performance
+- ❌ Selling the software or derivatives
+- ❌ Using in commercial products or services
+- ❌ Profit-generating activities
+- ❌ Integration into commercial software
+- ❌ Providing paid services based on this software
 
-Benchmark on 76MB, 37-minute MP4 (Python CLI):
+### Commercial Licensing
 
-| Interval | Time | File Size | Slides |
-|----------|------|-----------|--------|
-| -i 10    | ~7s  | ~9 MB     | ~222   |
-| -i 5     | ~14s | ~17 MB    | ~444   |
-| -i 2     | ~28s | ~33 MB    | ~1110  |
-| -i 1     | ~55s | ~80 MB    | ~2220  |
+For commercial use, please contact the copyright holder for a commercial license:
 
-Recommended: `-i 5` for typical use.
+- 📧 **Contact**: wangxs1995s@gmail.com
+- 🔗 **GitHub**: https://github.com/Wangxs404/video2ppt
+- 💼 **Business Inquiries**: Flexible commercial licensing available
 
-## Full Product
+### Full License
 
-This repository provides developer frame extraction and comparison tools. The complete video-to-presentation conversion product, including automatic PowerPoint generation and smart layouts, is available at [video2ppt.com](https://video2ppt.com).
+- 📄 **License Text**: [Creative Commons BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+- 📋 **Legal Code**: [Complete Legal Text](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode)
+- 📖 **Local File**: See [LICENSE](./LICENSE) for detailed terms
 
-## Documentation
+## 🙏 Acknowledgments
 
-- [English](docs/README_en.md)
-- [简体中文](docs/README_zh.md)
-- [日本語](docs/README_ja.md)
-- [Español](docs/README_es.md)
+- [Next.js](https://nextjs.org/) team for the amazing framework
+- [FFmpeg.wasm](https://ffmpegwasm.netlify.app/) for client-side video processing
+- [Shadcn UI](https://ui.shadcn.com/) for beautiful components
+- [Tailwind CSS](https://tailwindcss.com/) for utility-first styling
 
-## License
+## 📞 Support & Contact
 
-MIT License. See [LICENSE](LICENSE) for details.
+- 🌐 **Website**: [video2ppt.com](https://video2ppt.com)
+- 📧 **Email**: wangxs1995s@gmail.com
+- 🐙 **GitHub**: [Wangxs404/video2ppt](https://github.com/wangxs404/video2ppt)
+- 💬 **Issues**: [GitHub Issues](https://github.com/wangxs404/video2ppt/issues)
 
-## Contributing
+---
 
-Pull requests are welcome. For major changes, open an issue first to discuss proposed changes.
+**Copyright (c) 2025 Video2PPT - Licensed under CC BY-NC-SA 4.0**
 
-[Report issues](https://github.com/wangxs404/video2ppt/issues)
+Made with ❤️ by the Video2PPT team
