@@ -1,24 +1,114 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server';
+import youtubedl from 'yt-dlp-exec';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
+
+// Periodically clean up files in downloads/ older than 1 hour
+function cleanupOldFiles(downloadsDir: string) {
+  try {
+    if (!fs.existsSync(downloadsDir)) return;
+    const now = Date.now();
+    const files = fs.readdirSync(downloadsDir);
+    for (const file of files) {
+      const fullPath = path.join(downloadsDir, file);
+      const stat = fs.statSync(fullPath);
+      // 1 hour = 3600000 ms
+      if (stat.isFile() && now - stat.mtimeMs > 3600000) {
+        fs.unlinkSync(fullPath);
+      }
+    }
+  } catch (err) {
+    console.warn('Cleanup warning:', err);
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const { url } = await request.json()
-    
-    if (!url) {
-      return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 })
+    const { url } = await request.json();
+
+    if (!url || typeof url !== 'string' || !url.trim()) {
+      return NextResponse.json({ error: 'Video URL is required' }, { status: 400 });
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
-    const response = await fetch(`${baseUrl}/process`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    })
+    const trimmedUrl = url.trim();
 
-    const data = await response.json()
-    return NextResponse.json(data, { status: response.status })
-    
-  } catch (error) {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    // Basic URL pattern and protocol check
+    try {
+      const parsedUrl = new URL(trimmedUrl);
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        return NextResponse.json({ error: 'URL must begin with http:// or https://' }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
+    }
+
+    const downloadsDir = path.join(process.cwd(), 'downloads');
+    if (!fs.existsSync(downloadsDir)) {
+      fs.mkdirSync(downloadsDir, { recursive: true });
+    }
+
+    // Clean old files
+    cleanupOldFiles(downloadsDir);
+
+    const requestId = crypto.randomUUID();
+    const outputTemplate = path.join(downloadsDir, `${requestId}_%(title).40s.%(ext)s`);
+
+    try {
+      // Execute yt-dlp to download video
+      await youtubedl(trimmedUrl, {
+        output: outputTemplate,
+        format: 'best[height<=720]/bestvideo[height<=720]/best',
+        noPlaylist: true,
+        maxFilesize: '150m',
+        noWarnings: true,
+      });
+    } catch (ytdlError: any) {
+      console.error('yt-dlp execution error:', ytdlError);
+      const msg = ytdlError?.message || ytdlError?.stderr || 'Failed to download video';
+
+      if (msg.includes('is a live stream') || msg.includes('live event')) {
+        return NextResponse.json(
+          { error: 'This stream is currently broadcasting live. Please wait until the live stream finishes.' },
+          { status: 400 }
+        );
+      }
+      if (msg.includes('Private video') || msg.includes('Sign in')) {
+        return NextResponse.json(
+          { error: 'This video is private or age-restricted and cannot be downloaded.' },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Unable to process this video link. Please verify the URL or try downloading locally.' },
+        { status: 400 }
+      );
+    }
+
+    // Locate the downloaded file by requestId prefix
+    const downloadedFiles = fs.readdirSync(downloadsDir);
+    const targetFile = downloadedFiles.find((f) => f.startsWith(requestId));
+
+    if (!targetFile) {
+      return NextResponse.json(
+        { error: 'Video download completed but output file could not be found.' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      status: 'success',
+      message: 'Video processed successfully',
+      url: `/api/get-file?file=${encodeURIComponent(targetFile)}`,
+      filename: targetFile,
+      status_code: 200,
+      request_id: requestId,
+    });
+  } catch (error: any) {
+    console.error('Process online video error:', error);
+    return NextResponse.json(
+      { error: error?.message || 'Internal server error' },
+      { status: 500 }
+    );
   }
-} 
+}
