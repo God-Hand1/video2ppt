@@ -7,7 +7,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "node node_modules/yt-dlp-exec/scripts/postinstall.js || true"
   },
   "dependencies": {
     "@types/file-saver": "^2.0.7",

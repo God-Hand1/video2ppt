@@ -23,6 +23,32 @@ function cleanupOldFiles(downloadsDir: string) {
   }
 }
 
+// Locate yt-dlp binary with robust path resolution for Next.js bundling on Render/Linux
+function getYtDlpRunner() {
+  const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+  const candidatePaths = [
+    path.join(process.cwd(), 'node_modules', 'yt-dlp-exec', 'bin', binaryName),
+    path.join(process.cwd(), 'bin', binaryName),
+    path.join(__dirname, '..', '..', '..', '..', 'node_modules', 'yt-dlp-exec', 'bin', binaryName),
+  ];
+
+  for (const candidate of candidatePaths) {
+    if (fs.existsSync(candidate)) {
+      if (process.platform !== 'win32') {
+        try {
+          fs.chmodSync(candidate, 0o755);
+        } catch {
+          // ignore chmod errors
+        }
+      }
+      return (youtubedl as any).create(candidate);
+    }
+  }
+
+  // Fallback to default
+  return youtubedl;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { url } = await request.json();
@@ -55,8 +81,9 @@ export async function POST(request: NextRequest) {
     const outputTemplate = path.join(downloadsDir, `${requestId}_%(title).40s.%(ext)s`);
 
     try {
+      const runner = getYtDlpRunner();
       // Execute yt-dlp to download video (prioritizing <=480p to keep large lectures compact and fast)
-      await youtubedl(trimmedUrl, {
+      await runner(trimmedUrl, {
         output: outputTemplate,
         format: 'bestvideo[height<=480][ext=mp4]/bestvideo[height<=360][ext=mp4]/best[height<=480]/best',
         noPlaylist: true,
