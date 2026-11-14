@@ -30,6 +30,14 @@ export async function compareFrames(
 ): Promise<CompareResult> {
   const { threshold = 0.1, includeAA = false, resizeWidth = 640 } = options;
 
+  if (resizeWidth <= 0 || isNaN(resizeWidth)) {
+    throw new Error(`Invalid resizeWidth: ${resizeWidth}. Must be a positive number.`);
+  }
+
+  if (threshold < 0 || threshold > 1 || isNaN(threshold)) {
+    throw new Error(`Invalid threshold: ${threshold}. Must be between 0 and 1.`);
+  }
+
   const [img1Buffer, img2Buffer] = await Promise.all([
     fs.readFile(image1Path),
     fs.readFile(image2Path),
@@ -69,7 +77,7 @@ export async function compareFrames(
   );
 
   const totalPixels = png1.width * png1.height;
-  const percentDifferent = (pixelsDifferent / totalPixels) * 100;
+  const percentDifferent = totalPixels > 0 ? (pixelsDifferent / totalPixels) * 100 : 0;
 
   return {
     difference: pixelsDifferent,
@@ -91,7 +99,11 @@ export async function detectSceneChanges(
   sceneThreshold: number = 30,
   options: CompareOptions = {}
 ): Promise<number[]> {
-  if (framePaths.length === 0) {
+  if (sceneThreshold < 0 || sceneThreshold > 100 || isNaN(sceneThreshold)) {
+    throw new Error(`Invalid sceneThreshold: ${sceneThreshold}. Must be between 0 and 100.`);
+  }
+
+  if (!Array.isArray(framePaths) || framePaths.length === 0) {
     return [];
   }
 
@@ -121,5 +133,5 @@ export async function calculateSimilarity(
   options: CompareOptions = {}
 ): Promise<number> {
   const result = await compareFrames(image1Path, image2Path, options);
-  return 1 - result.percentDifferent / 100;
+  return Math.max(0, Math.min(1, 1 - result.percentDifferent / 100));
 }

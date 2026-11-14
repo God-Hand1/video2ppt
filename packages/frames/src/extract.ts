@@ -73,8 +73,33 @@ export async function extractFrames(
     maxFrames,
   } = options;
 
+  if (!videoPath || typeof videoPath !== 'string') {
+    throw new Error('Video path must be a non-empty string.');
+  }
+
+  const isUrl = /^(https?|rtsp|rtmp):\/\//i.test(videoPath);
+  if (!isUrl) {
+    try {
+      await fs.access(videoPath);
+    } catch {
+      throw new Error(`Video file not found: ${videoPath}`);
+    }
+  }
+
   if (interval <= 0 || isNaN(interval)) {
     throw new Error(`Invalid interval: ${interval}. Interval must be greater than 0.`);
+  }
+
+  if (format !== 'jpg' && format !== 'png') {
+    throw new Error(`Invalid format: "${format}". Format must be "jpg" or "png".`);
+  }
+
+  if (quality < 1 || quality > 31 || isNaN(quality)) {
+    throw new Error(`Invalid quality: ${quality}. Quality must be between 1 and 31.`);
+  }
+
+  if (maxFrames !== undefined && (maxFrames <= 0 || isNaN(maxFrames))) {
+    throw new Error(`Invalid maxFrames: ${maxFrames}. maxFrames must be a positive integer.`);
   }
 
   await fs.mkdir(outputDir, { recursive: true });
@@ -130,8 +155,25 @@ export async function extractFrameAt(
   timestamp: number,
   outputPath: string
 ): Promise<string> {
+  if (!videoPath || typeof videoPath !== 'string') {
+    throw new Error('Video path must be a non-empty string.');
+  }
+
+  const isUrl = /^(https?|rtsp|rtmp):\/\//i.test(videoPath);
+  if (!isUrl) {
+    try {
+      await fs.access(videoPath);
+    } catch {
+      throw new Error(`Video file not found: ${videoPath}`);
+    }
+  }
+
   if (timestamp < 0 || isNaN(timestamp)) {
     throw new Error(`Invalid timestamp: ${timestamp}. Timestamp must be non-negative.`);
+  }
+
+  if (!outputPath || typeof outputPath !== 'string') {
+    throw new Error('Output path must be a non-empty string.');
   }
 
   const outputDir = path.dirname(outputPath);

@@ -27,12 +27,15 @@ class TestVideo2PPT(unittest.TestCase):
         out.release()
 
     def tearDown(self):
-        for path in [self.test_video, self.test_output]:
+        for path in [self.test_video, self.test_output, "test_nested/nested_out.pptx"]:
             if os.path.exists(path):
                 os.remove(path)
+        if os.path.exists("test_nested"):
+            import shutil
+            shutil.rmtree("test_nested", ignore_errors=True)
         if os.path.exists("temp_frames"):
             import shutil
-            shutil.rmtree("temp_frames")
+            shutil.rmtree("temp_frames", ignore_errors=True)
 
     def test_invalid_interval(self):
         with self.assertRaises(ValueError):
@@ -63,6 +66,14 @@ class TestVideo2PPT(unittest.TestCase):
         expected_ratio = 640 / 360
         actual_ratio = prs.slide_width / prs.slide_height
         self.assertAlmostEqual(actual_ratio, expected_ratio, places=2)
+
+    def test_output_path_auto_extension_and_nested_dir(self):
+        # Test without .pptx extension and in non-existent nested directory
+        nested_output = "test_nested/nested_out"
+        converter = Video2PPT(self.test_video, nested_output, fps_interval=1)
+        self.assertTrue(converter.output_path.endswith(".pptx"))
+        converter.convert()
+        self.assertTrue(os.path.exists("test_nested/nested_out.pptx"))
 
 
 if __name__ == '__main__':

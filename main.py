@@ -8,6 +8,7 @@ Extract key frames from videos and generate PPT
 import os
 import sys
 import shutil
+import tempfile
 import argparse
 import logging
 from pathlib import Path
@@ -60,6 +61,8 @@ class Video2PPT:
         if output_path is None:
             base_name = Path(video_path).stem
             output_path = f"{base_name}_output.pptx"
+        elif not output_path.lower().endswith(".pptx"):
+            output_path = f"{output_path}.pptx"
         
         self.output_path = output_path
         logger.info(f"Initializing converter: {video_path} -> {output_path}")
@@ -68,9 +71,8 @@ class Video2PPT:
         """Extract frames from video"""
         logger.info("Starting frame extraction...")
         
-        # Create temporary directory to store frames
-        self.frames_dir = "temp_frames"
-        os.makedirs(self.frames_dir, exist_ok=True)
+        # Create isolated temporary directory in system temp to guarantee concurrency safety
+        self.frames_dir = tempfile.mkdtemp(prefix="video2ppt_")
         
         # Open video file
         cap = cv2.VideoCapture(self.video_path)
@@ -156,6 +158,11 @@ class Video2PPT:
             top = Inches(0)
             pic = slide.shapes.add_picture(frame_path, left, top, width=slide_width, height=slide_height)
         
+        # Ensure parent output directory exists
+        parent_dir = os.path.dirname(os.path.abspath(self.output_path))
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
+
         # Save presentation
         prs.save(self.output_path)
         logger.info(f"PowerPoint saved: {self.output_path}")
@@ -163,8 +170,9 @@ class Video2PPT:
     def cleanup(self) -> None:
         """Clean up temporary files"""
         if self.frames_dir and os.path.exists(self.frames_dir):
-            shutil.rmtree(self.frames_dir)
+            shutil.rmtree(self.frames_dir, ignore_errors=True)
             logger.info("Temporary files cleaned up")
+            self.frames_dir = None
     
     def convert(self) -> None:
         """Execute full conversion process"""
@@ -199,6 +207,10 @@ Examples:
     
     args = parser.parse_args()
     
+    if args.interval <= 0:
+        logger.error(f"Error: Interval must be greater than 0, got {args.interval}")
+        sys.exit(1)
+
     try:
         converter = Video2PPT(args.video, args.output, args.interval)
         converter.convert()

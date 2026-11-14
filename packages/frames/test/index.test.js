@@ -26,23 +26,46 @@ test('parseFrameRate correctly parses fractions and numbers without eval', () =>
 test('extractFrames and extractFrameAt validate invalid inputs', async () => {
   await assert.rejects(
     async () => {
-      await extractFrames('dummy.mp4', { interval: 0 });
+      await extractFrames('non_existent_file.mp4', { interval: 1 });
     },
-    /Invalid interval/
+    /Video file not found/
   );
 
   await assert.rejects(
     async () => {
-      await extractFrames('dummy.mp4', { interval: -1 });
+      await extractFrameAt('non_existent_file.mp4', 0, 'out.jpg');
     },
-    /Invalid interval/
+    /Video file not found/
   );
 
   await assert.rejects(
     async () => {
-      await extractFrameAt('dummy.mp4', -5, 'out.jpg');
+      await extractFrames('', { interval: 1 });
     },
-    /Invalid timestamp/
+    /Video path must be a non-empty string/
+  );
+});
+
+test('compareFrames and detectSceneChanges validate options', async () => {
+  await assert.rejects(
+    async () => {
+      await compareFrames('a.png', 'b.png', { resizeWidth: 0 });
+    },
+    /Invalid resizeWidth/
+  );
+
+  await assert.rejects(
+    async () => {
+      await compareFrames('a.png', 'b.png', { threshold: 1.5 });
+    },
+    /Invalid threshold/
+  );
+
+  await assert.rejects(
+    async () => {
+      await detectSceneChanges([], -5);
+    },
+    /Invalid sceneThreshold/
   );
 });
 
